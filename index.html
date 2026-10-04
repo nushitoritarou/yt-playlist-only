@@ -6,13 +6,19 @@
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <title>Playlist</title>
 <style>
-  html, body { margin: 0; height: 100%; font-family: sans-serif; background: #000; }
-  iframe { width: 100%; height: 100%; border: 0; display: block; }
-  #setup { padding: 16px; background: #fff; }
+  body { margin: 0; font-family: sans-serif; }
+  #bar { height: 48px; box-sizing: border-box; padding: 4px 8px; }
+  #bar button { height: 40px; font-size: 16px; }
+  /* 16:9。横長の画面でも上部バーと合わせて画面の高さに収める */
+  iframe { display: block; width: min(100%, calc((100dvh - 48px) * 16 / 9)); aspect-ratio: 16 / 9; margin: 0 auto; border: 0; }
+  #setup { padding: 16px; }
   #setup input { width: 100%; box-sizing: border-box; font-size: 16px; padding: 8px; margin: 8px 0; }
   #history { list-style: none; padding: 0; }
   #history small { color: #666; }
   #history button { width: 100%; text-align: left; font-size: 16px; padding: 12px 8px; margin: 4px 0; }
+  #videos { padding: 0 8px 0 3em; }
+  #videos button { width: 100%; text-align: left; font-size: 16px; padding: 12px 8px; margin: 4px 0; }
+  #videos [aria-current] { font-weight: bold; }
 </style>
 </head>
 <body>
@@ -22,16 +28,28 @@
   <button>開く</button>
   <ul id="history"></ul>
 </form>
+<div id="player" hidden>
+  <div id="bar"><button id="back" type="button">← 履歴</button></div>
+  <ol id="videos"></ol>
+</div>
 <script>
-  // 入力したことのある再生リストを {id, title} の配列で新しい順に保存する
+  // 入力したことのある再生リストを {id, title, at(最後に開いた時刻)} の配列で新しい順に保存する
   const KEY = "playlists";
+  // YouTube API Services のデータ保存期限(30日)に合わせ、最後に開いてから30日を過ぎた履歴は削除する
+  const TTL = 30 * 24 * 60 * 60 * 1000;
   function load() {
     try {
-      const a = JSON.parse(localStorage.getItem(KEY));
-      // 旧形式(IDの文字列の配列)と旧版の "pl" キー(1件のみ)を引き継ぐ
-      if (Array.isArray(a)) return a.map(x => typeof x === "string" ? { id: x } : x);
-      const old = localStorage.getItem("pl");
-      return old ? [{ id: old }] : [];
+      const now = Date.now();
+      let a = JSON.parse(localStorage.getItem(KEY));
+      if (!Array.isArray(a)) {
+        const old = localStorage.getItem("pl"); // 旧版の "pl" キー(1件のみ)を引き継ぐ
+        a = old ? [old] : [];
+      }
+      // 旧形式(IDの文字列や at のない要素)は今開いたものとして扱う
+      a = a.map(x => typeof x === "string" ? { id: x, at: now } : { ...x, at: x.at ?? now })
+        .filter(x => now - x.at < TTL);
+      save(a);
+      return a;
     } catch { return []; }
   }
   function save(a) {
@@ -39,8 +57,8 @@
   }
   function remember(id) {
     const a = load();
-    const cur = a.find(x => x.id === id) || { id };
-    save([cur, ...a.filter(x => x.id !== id)]);
+    // 名前は開くたびに取り直す。取得に失敗した場合は名前を持たず、IDを表示する
+    save([{ id, at: Date.now() }, ...a.filter(x => x.id !== id)]);
   }
 
   // oEmbedで再生リスト名を取得して履歴に記録する。失敗しても再生には影響させない
@@ -51,7 +69,7 @@
       if (!r.ok) return;
       const { title } = await r.json();
       if (!title) return;
-      save(load().map(x => x.id === id ? { id, title } : x));
+      save(load().map(x => x.id === id ? { ...x, title } : x));
     } catch {}
   }
 
@@ -60,37 +78,92 @@
     try { return new URL(v).searchParams.get("list") || v; } catch { return v; }
   }
 
+  // IFrame Player API を一度だけ読み込む。読み込めなくても埋め込みの再生自体はできる
+  let api;
+  function loadApi() {
+    return api ||= new Promise((resolve, reject) => {
+      window.onYouTubeIframeAPIReady = () => resolve(window.YT);
+      const s = document.createElement("script");
+      s.src = "https://www.youtube.com/iframe_api";
+      s.onerror = () => { api = null; reject(); };
+      document.head.appendChild(s);
+    });
+  }
+
+  // 埋め込みプレイヤーには再生リスト一覧のボタンがないので、動画の一覧をプレイヤーの下に出す
+  function listVideos(p) {
+    const ids = p.getPlaylist();
+    if (!ids || videos.childElementCount) return;
+    ids.forEach((v, i) => {
+      const li = document.createElement("li");
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = "動画 " + (i + 1);
+      b.onclick = () => p.playVideoAt(i);
+      li.appendChild(b);
+      videos.appendChild(li);
+      const u = "https://www.youtube.com/watch?v=" + encodeURIComponent(v);
+      fetch("https://www.youtube.com/oembed?format=json&url=" + encodeURIComponent(u))
+        .then(r => r.ok ? r.json() : {})
+        .then(({ title }) => { if (title) b.textContent = title; })
+        .catch(() => {});
+    });
+  }
+  function markCurrent(p) {
+    const i = p.getPlaylistIndex();
+    [...videos.querySelectorAll("button")].forEach((b, j) => b.toggleAttribute("aria-current", j === i));
+  }
+
   function show(id) {
     remember(id);
     fetchTitle(id);
-    document.getElementById("setup").hidden = true;
+    form.hidden = true;
+    player.hidden = false;
     const f = document.createElement("iframe");
     f.src = "https://www.youtube-nocookie.com/embed/videoseries?list=" + encodeURIComponent(id)
-      + "&playsinline=1"; // iOSで全画面に強制遷移させず、プレイヤー内のUI(再生リスト一覧など)を使えるようにする
+      + "&playsinline=1" // iOSで再生開始時にネイティブ全画面へ強制遷移させない
+      + "&enablejsapi=1&origin=" + encodeURIComponent(location.origin);
     f.allow = "fullscreen; encrypted-media; picture-in-picture";
     f.allowFullscreen = true;
     f.referrerPolicy = "strict-origin-when-cross-origin";
-    document.body.appendChild(f);
+    document.getElementById("bar").after(f);
+    loadApi().then(YT => {
+      if (!f.isConnected) return; // 読み込み中に履歴へ戻った
+      new YT.Player(f, { events: {
+        onReady: e => { listVideos(e.target); markCurrent(e.target); },
+        onStateChange: e => { listVideos(e.target); markCurrent(e.target); },
+      } });
+    }).catch(() => {});
   }
 
-  // リロード時は常に入力画面から始め、履歴から選べるようにする
+  // 入力画面と履歴を表示する。リロード時もプレイヤーから戻ったときもここから始める
   const form = document.getElementById("setup");
   const list = document.getElementById("history");
-  for (const { id, title } of load()) {
-    const li = document.createElement("li");
-    const b = document.createElement("button");
-    b.type = "button";
-    b.textContent = title || id;
-    if (title) {
-      const small = document.createElement("small");
-      small.textContent = id;
-      b.append(document.createElement("br"), small);
+  const player = document.getElementById("player");
+  const videos = document.getElementById("videos");
+  function showSetup() {
+    player.querySelector("iframe")?.remove(); // iframeごと消して再生を止める
+    videos.replaceChildren();
+    player.hidden = true;
+    list.replaceChildren();
+    for (const { id, title } of load()) {
+      const li = document.createElement("li");
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = title || id;
+      if (title) {
+        const small = document.createElement("small");
+        small.textContent = id;
+        b.append(document.createElement("br"), small);
+      }
+      b.onclick = () => show(id);
+      li.appendChild(b);
+      list.appendChild(li);
     }
-    b.onclick = () => show(id);
-    li.appendChild(b);
-    list.appendChild(li);
+    form.hidden = false;
   }
-  form.hidden = false;
+  document.getElementById("back").onclick = showSetup;
+  showSetup();
   form.onsubmit = e => {
     e.preventDefault();
     const v = parse(document.getElementById("pl").value.trim());
