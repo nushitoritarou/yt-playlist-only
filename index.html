@@ -10,17 +10,32 @@
   iframe { width: 100%; height: 100%; border: 0; display: block; }
   #setup { padding: 16px; background: #fff; }
   #setup input { width: 100%; box-sizing: border-box; font-size: 16px; padding: 8px; margin: 8px 0; }
+  #history { list-style: none; padding: 0; }
+  #history button { width: 100%; text-align: left; font-size: 16px; padding: 12px 8px; margin: 4px 0; }
 </style>
 </head>
 <body>
 <form id="setup" hidden>
   <p>再生リストID（PLから始まる文字列）または再生リストのURL</p>
   <input id="pl" placeholder="PLxxxxxxxx" autocomplete="off" autocapitalize="off" spellcheck="false">
-  <button>保存</button>
+  <button>開く</button>
+  <ul id="history"></ul>
 </form>
 <script>
-  const get = () => { try { return localStorage.getItem("pl"); } catch { return null; } };
-  const set = v => { try { localStorage.setItem("pl", v); } catch {} };
+  // 入力したことのある再生リストIDを新しい順に保存する
+  const KEY = "playlists";
+  function load() {
+    try {
+      const a = JSON.parse(localStorage.getItem(KEY));
+      if (Array.isArray(a)) return a;
+      const old = localStorage.getItem("pl"); // 旧版は1件だけ "pl" に保存していた
+      return old ? [old] : [];
+    } catch { return []; }
+  }
+  function remember(id) {
+    const a = [id, ...load().filter(x => x !== id)];
+    try { localStorage.setItem(KEY, JSON.stringify(a)); } catch {}
+  }
 
   // URL(…?list=PLxxx)が貼られた場合は list パラメータを取り出す
   function parse(v) {
@@ -28,6 +43,7 @@
   }
 
   function show(id) {
+    remember(id);
     document.getElementById("setup").hidden = true;
     const f = document.createElement("iframe");
     f.src = "https://www.youtube-nocookie.com/embed/videoseries?list=" + encodeURIComponent(id)
@@ -38,17 +54,24 @@
     document.body.appendChild(f);
   }
 
-  const saved = get();
-  if (saved) show(saved);
-  else {
-    const form = document.getElementById("setup");
-    form.hidden = false;
-    form.onsubmit = e => {
-      e.preventDefault();
-      const v = parse(document.getElementById("pl").value.trim());
-      if (v) { set(v); show(v); }
-    };
+  // リロード時は常に入力画面から始め、履歴から選べるようにする
+  const form = document.getElementById("setup");
+  const list = document.getElementById("history");
+  for (const id of load()) {
+    const li = document.createElement("li");
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = id;
+    b.onclick = () => show(id);
+    li.appendChild(b);
+    list.appendChild(li);
   }
+  form.hidden = false;
+  form.onsubmit = e => {
+    e.preventDefault();
+    const v = parse(document.getElementById("pl").value.trim());
+    if (v) show(v);
+  };
 </script>
 </body>
 </html>
