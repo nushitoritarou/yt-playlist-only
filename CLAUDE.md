@@ -1,4 +1,4 @@
-# yt-playlist-only
+# まっすぐ再生(yt-playlist-only)
 
 あらかじめ選んでおいたYouTubeの再生リストから直接再生を始めるための、静的HTML 1枚のプロジェクト。
 
@@ -40,6 +40,7 @@
 - APIスクリプトが読み込めなくても埋め込みでの再生はできる(一覧が出ないだけ)。動画のタイトルは保存しない。
 
 **ホーム画面へのインストール(`manifest.webmanifest`、アイコン)**
+- アプリ名は「まっすぐ再生」。`<title>`、`<meta name="apple-mobile-web-app-title">`(iOSのホーム画面での名前)、manifestの `name`・`short_name` を揃える。YouTubeの名前や紛らわしい名前はアプリ名に使わない(YouTubeのブランドガイドライン)。
 - `<head>` に `<link rel="manifest">`、`<link rel="icon">`(`icon.svg`)、`<link rel="apple-touch-icon">`(180px)、`<meta name="theme-color" content="#0f766e">` を置く。
 - manifest: `display: "standalone"`。`id`・`start_url`・`scope` は `./`。GitHub Pagesでは `/yt-playlist-only/` の下で配信するので、絶対パスにしない。
 - アイコンは `icon.svg` が元データ。背景 `#0f766e` を端まで塗った不透明な正方形に、白で横線3本と▶を描く(YouTubeのロゴに似せない)。図案は中央80%の円に収め、manifestでは `"purpose": "any maskable"` とする。iOSは透過部分を黒で塗るので透過は使わない。
