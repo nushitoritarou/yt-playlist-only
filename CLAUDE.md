@@ -74,5 +74,5 @@
 - `index.html` を変更したら、localhostで配信して動作確認する。
 - 余計な依存やビルド工程を足さない。最小構成を維持する。
 - 変更した場合は、上の仕様、既知の問題の表、確認項目の結果をこのファイルに反映する。仕様は現在の状態として書き、変更の経緯はgitのログに任せる。
-- デプロイ先はGitHub Pages。手順は `README.md` にまとめている。
+- GitHub Pagesで `main` の `/ (root)` を公開している(`https://nushitoritarou.github.io/yt-playlist-only/`)。
 - このリポジトリはpublic。個人的な事情やリポジトリ外のメモへの参照は書かない。

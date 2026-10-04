@@ -2,6 +2,8 @@
 
 あらかじめ選んでおいたYouTubeの再生リストから、直接再生を始めるためのページです。静的HTML 1枚で動き、ビルドやAPIキーは要りません。
 
+公開ページ: https://nushitoritarou.github.io/yt-playlist-only/
+
 ## なぜ作ったか
 
 YouTubeのアプリやトップ画面を開くと、まずおすすめ動画が無限スクロールで並びます。見たいものが決まっていても、そこを経由するうちに関係ない動画を見てしまいがちです。
@@ -32,15 +34,6 @@ python3 -m http.server 8000
 - 履歴はブラウザのlocalStorageに保存され、再生リスト名を表示します（YouTubeのoEmbedで取得し、取得できなかった場合はIDを表示）。最後に開いてから30日を過ぎた履歴は消えます。
 - iPhoneでは、Safariの共有メニューから「ホーム画面に追加」して使ってください。追加していないと、7日間アクセスがなかった時点でSafariが履歴を消します。
 
-## デプロイ（GitHub Pagesを推奨）
+## 自分で公開する
 
-このリポジトリはすでにGitHubにあり、ビルド工程もないため、GitHub Pagesがいちばん手数が少ない方法です。
-
-1. リポジトリの **Settings → Pages** を開きます。
-2. **Source** で「Deploy from a branch」を選びます。
-3. **Branch** で `main`（または公開に使うブランチ）と `/ (root)` を選び、Save します。
-4. 数分後に表示される `https://<user>.github.io/yt-playlist-only/` をスマホで開き、ホーム画面に追加します。
-
-GitHub Pagesはリファラを消すヘッダーを付けないので、エラー153の心配はありません。
-
-リポジトリをprivateにしたまま公開したい場合、GitHub Freeプランでは使えません。その場合はCloudflare Pagesを使います（Workers & Pages → Create → Pages → Gitリポジトリを接続し、ビルドコマンドは空、出力ディレクトリは `/`）。なお、再生リストIDはコードに含まれないので、リポジトリをpublicにしても再生リストの中身は公開されません。
+静的ファイルを置けるところならどこでも動きます。GitHub Pagesなら、このリポジトリをforkし、**Settings → Pages** で `main` ブランチの `/ (root)` を公開するだけです。再生リストIDはブラウザ側に保存されるので、forkしたリポジトリに個人的な値を書き込む必要はありません。
