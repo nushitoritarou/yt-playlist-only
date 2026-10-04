@@ -6,9 +6,12 @@
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <title>Playlist</title>
 <style>
-  html, body { margin: 0; height: 100%; font-family: sans-serif; background: #000; }
-  iframe { width: 100%; height: 100%; border: 0; display: block; }
-  #setup { padding: 16px; background: #fff; }
+  body { margin: 0; font-family: sans-serif; }
+  #bar { height: 48px; box-sizing: border-box; padding: 4px 8px; }
+  #bar button { height: 40px; font-size: 16px; }
+  /* 16:9。横長の画面でも上部バーと合わせて画面の高さに収める */
+  iframe { display: block; width: min(100%, calc((100dvh - 48px) * 16 / 9)); aspect-ratio: 16 / 9; margin: 0 auto; border: 0; }
+  #setup { padding: 16px; }
   #setup input { width: 100%; box-sizing: border-box; font-size: 16px; padding: 8px; margin: 8px 0; }
   #history { list-style: none; padding: 0; }
   #history small { color: #666; }
@@ -22,6 +25,9 @@
   <button>開く</button>
   <ul id="history"></ul>
 </form>
+<div id="player" hidden>
+  <div id="bar"><button id="back" type="button">← 履歴</button></div>
+</div>
 <script>
   // 入力したことのある再生リストを {id, title} の配列で新しい順に保存する
   const KEY = "playlists";
@@ -63,34 +69,43 @@
   function show(id) {
     remember(id);
     fetchTitle(id);
-    document.getElementById("setup").hidden = true;
+    form.hidden = true;
+    player.hidden = false;
     const f = document.createElement("iframe");
     f.src = "https://www.youtube-nocookie.com/embed/videoseries?list=" + encodeURIComponent(id)
       + "&playsinline=1"; // iOSで全画面に強制遷移させず、プレイヤー内のUI(再生リスト一覧など)を使えるようにする
     f.allow = "fullscreen; encrypted-media; picture-in-picture";
     f.allowFullscreen = true;
     f.referrerPolicy = "strict-origin-when-cross-origin";
-    document.body.appendChild(f);
+    player.appendChild(f);
   }
 
-  // リロード時は常に入力画面から始め、履歴から選べるようにする
+  // 入力画面と履歴を表示する。リロード時もプレイヤーから戻ったときもここから始める
   const form = document.getElementById("setup");
   const list = document.getElementById("history");
-  for (const { id, title } of load()) {
-    const li = document.createElement("li");
-    const b = document.createElement("button");
-    b.type = "button";
-    b.textContent = title || id;
-    if (title) {
-      const small = document.createElement("small");
-      small.textContent = id;
-      b.append(document.createElement("br"), small);
+  const player = document.getElementById("player");
+  function showSetup() {
+    player.querySelector("iframe")?.remove(); // iframeごと消して再生を止める
+    player.hidden = true;
+    list.replaceChildren();
+    for (const { id, title } of load()) {
+      const li = document.createElement("li");
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = title || id;
+      if (title) {
+        const small = document.createElement("small");
+        small.textContent = id;
+        b.append(document.createElement("br"), small);
+      }
+      b.onclick = () => show(id);
+      li.appendChild(b);
+      list.appendChild(li);
     }
-    b.onclick = () => show(id);
-    li.appendChild(b);
-    list.appendChild(li);
+    form.hidden = false;
   }
-  form.hidden = false;
+  document.getElementById("back").onclick = showSetup;
+  showSetup();
   form.onsubmit = e => {
     e.preventDefault();
     const v = parse(document.getElementById("pl").value.trim());
