@@ -30,7 +30,8 @@
   function show(id) {
     document.getElementById("setup").hidden = true;
     const f = document.createElement("iframe");
-    f.src = "https://www.youtube-nocookie.com/embed/videoseries?list=" + encodeURIComponent(id);
+    f.src = "https://www.youtube-nocookie.com/embed/videoseries?list=" + encodeURIComponent(id)
+      + "&playsinline=1"; // iOSで全画面に強制遷移させず、プレイヤー内のUI(再生リスト一覧など)を使えるようにする
     f.allow = "fullscreen; encrypted-media; picture-in-picture";
     f.allowFullscreen = true;
     f.referrerPolicy = "strict-origin-when-cross-origin";
