@@ -10,7 +10,7 @@
 
 ## 現在のスコープ(最小構成)
 
-- `index.html` 1枚のみ。ビルド、依存パッケージ、APIキーは使わない。
+- ページは `index.html` 1枚のみ。ほかにホーム画面へインストールするためのmanifestとアイコンを置く。ビルド、依存パッケージ、APIキーは使わない。
 - `https://www.youtube-nocookie.com/embed/videoseries?list=<再生リストID>` をiframeで表示する。
 - 動画IDの解決はYouTube側のプレイヤーが行う。再生リストに動画を追加すれば即時に反映される。
 - 再生リストは「公開」または「限定公開」(非公開は埋め込み不可)。
@@ -39,6 +39,13 @@
 - タップで `playVideoAt(i)`。再生中の動画は `getPlaylistIndex()` で太字にする。
 - APIスクリプトが読み込めなくても埋め込みでの再生はできる(一覧が出ないだけ)。動画のタイトルは保存しない。
 
+**ホーム画面へのインストール(`manifest.webmanifest`、アイコン)**
+- `<head>` に `<link rel="manifest">`、`<link rel="icon">`(`icon.svg`)、`<link rel="apple-touch-icon">`(180px)、`<meta name="theme-color" content="#0f766e">` を置く。
+- manifest: `display: "standalone"`。`id`・`start_url`・`scope` は `./`。GitHub Pagesでは `/yt-playlist-only/` の下で配信するので、絶対パスにしない。
+- アイコンは `icon.svg` が元データ。背景 `#0f766e` を端まで塗った不透明な正方形に、白で横線3本と▶を描く(YouTubeのロゴに似せない)。図案は中央80%の円に収め、manifestでは `"purpose": "any maskable"` とする。iOSは透過部分を黒で塗るので透過は使わない。
+- PNG(`icon-192.png`、`icon-512.png`、`apple-touch-icon.png`)は `icon.svg` をChromiumで描画して書き出したものをコミットしている。`icon.svg` を変えたら書き出し直す。
+- Service Workerは置かない。Chromeのインストール判定に不要で、オフラインでは再生できないため。
+
 **履歴(localStorage)**
 - キー `playlists`。`{id, title, at}` の配列で、最後に開いたものが先頭。`at` は最後に開いた時刻。
 - 開くたびに `at` を更新し、再生リスト名をoEmbed(`https://www.youtube.com/oembed?format=json&url=<再生リストURL>`)で取り直す。取得に失敗した場合は名前を持たず、IDを表示する。保存するのは `title` だけで、`author_name` などの投稿者情報は保存しない。
@@ -57,6 +64,7 @@
 | 埋め込みプレイヤーに再生リスト一覧を開くボタンがない | 2026年の埋め込みプレイヤー刷新の影響。PCで一時停止して表示を確認したところ、右上は音量・字幕・設定、中央に前へ・再生・次へ、右下に「その他の動画」があり、再生リストのメニューボタンはなかった。こちらのコード(URLパラメータ・CSS)が原因ではない | IFrame Player API の `getPlaylist()` で取得した動画一覧をプレイヤーの下に表示するようにした。ヘッドレスChromiumで、APIとoEmbedをモックして一覧表示・タイトル取得とその失敗時の表示・タップで再生・現在の動画の強調・戻る→再表示(APIスクリプトの読み込みは1回だけ)・APIスクリプトが読み込めない場合も埋め込みが表示されることを確認済み |
 | 埋め込みプレイヤー右下の「その他の動画」から再生リスト外の動画を再生できる | 新しい埋め込みプレイヤーのUI。これを非表示にするURLパラメータはない(`rel=0` でも同じチャンネルの動画は出る) | 対処不可。押すとyoutube.comが別タブで開くため、ページ側では検知できない。目的(トップ画面を経由しないこと)には影響しないので許容する |
 | (確認済み) 履歴の30日期限 | — | ヘッドレスChromiumで、29日前のものは残り31日前のものは削除されること、開くと `at` が更新され名前が取り直されること、取得失敗時は古い名前を捨ててID表示になること、旧形式(文字列・`at` なし・`pl` キー)の引き継ぎを確認済み |
+| AndroidのChromeで「インストールできません」となり、ホーム画面にはタブで開くショートカットしか置けない | manifestがなく、Chromeのインストール条件(manifestの `name`・`start_url`・`display`、192pxと512pxのアイコン)を満たしていなかった | manifestとアイコンを追加した。ヘッドレスChromiumで `/yt-playlist-only/` 配下に配信し、CDPの `Page.getInstallabilityErrors` が空になること、manifestとアイコンが200で返ることを確認済み。実機でのインストールは未確認 |
 | (確認済み) フォーム→iframe表示→リロード後に入力画面と履歴を表示→履歴から再表示 | — | localhost配信とヘッドレスChromiumで動作を確認した。旧 `pl` キーの引き継ぎ、履歴の並び順(最後に開いたものが先頭)、oEmbed成功時のタイトル保存・表示と失敗時のID表示(oEmbedはモック応答)も確認済み。URLを貼った場合のID抽出も確認済み |
 
 ## 動作確認
@@ -66,7 +74,7 @@
 
 ## 注意点
 
-- Safariはホーム画面に追加していないサイトのlocalStorageを、7日間アクセスがないと消す。ホーム画面に追加して使う。
+- Safariはホーム画面に追加していないサイトのlocalStorageを、7日間アクセスがないと消す。ホーム画面に追加して使う。ホーム画面から開いたWebアプリのlocalStorageはSafariのタブとは別なので、Safariで作った履歴は引き継がれない。
 - `rel=0` は現仕様では「関連動画を出さない」ではなく「同じチャンネルの動画のみ表示」。使う場合はこの点に注意。
 
 ## Claude Codeへの作業指示
