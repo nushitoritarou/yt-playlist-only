@@ -22,11 +22,9 @@
   const get = () => { try { return localStorage.getItem("pl"); } catch { return null; } };
   const set = v => { try { localStorage.setItem("pl", v); } catch {} };
 
-  // 共有リンク等(…?list=PLxxx&si=…)が貼られた場合は list パラメータを取り出す。
-  // スキーム省略や前後に文字列が付いた貼り付けにも対応するため、URLパースではなく正規表現で探す
+  // URL(…?list=PLxxx)が貼られた場合は list パラメータを取り出す
   function parse(v) {
-    const m = v.match(/[?&]list=([\w-]+)/);
-    return m ? m[1] : v;
+    try { return new URL(v).searchParams.get("list") || v; } catch { return v; }
   }
 
   function show(id) {
