@@ -19,49 +19,12 @@
 
 ### 現在のコード
 
-```html
-<!doctype html>
-<html lang="ja">
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Playlist</title>
-<style>
-  html, body { margin: 0; height: 100%; font-family: sans-serif; }
-  iframe { width: 100%; height: 100%; border: 0; display: block; }
-  #setup { padding: 16px; }
-  #setup input { width: 100%; box-sizing: border-box; font-size: 16px; padding: 8px; margin: 8px 0; }
-</style>
-<body>
-<div id="setup" hidden>
-  <p>再生リストID（PLから始まる文字列）</p>
-  <input id="pl" placeholder="PLxxxxxxxx">
-  <button id="ok">保存</button>
-</div>
-<script>
-  const get = () => { try { return localStorage.getItem("pl"); } catch { return null; } };
-  const set = v => { try { localStorage.setItem("pl", v); } catch {} };
+実体は `index.html`。最初の版(Notion案B-0)からの差分は次の通り。
 
-  function show(id) {
-    document.getElementById("setup").hidden = true;
-    const f = document.createElement("iframe");
-    f.src = "https://www.youtube-nocookie.com/embed/videoseries?list=" + encodeURIComponent(id);
-    f.allow = "fullscreen";
-    f.allowFullscreen = true;
-    document.body.appendChild(f);
-  }
-
-  const saved = get();
-  if (saved) show(saved);
-  else {
-    document.getElementById("setup").hidden = false;
-    document.getElementById("ok").onclick = () => {
-      const v = document.getElementById("pl").value.trim();
-      if (v) { set(v); show(v); }
-    };
-  }
-</script>
-</html>
-```
+- `<meta name="referrer" content="strict-origin-when-cross-origin">` と iframe の `referrerPolicy` を明示した(エラー153の予防)。
+- 入力欄を `<form>` にして、Enterキーで保存できるようにした。
+- 再生リストURL(`...?list=PL...`)を貼った場合は、`list` パラメータを取り出して保存する。
+- iframe の `allow` に `encrypted-media; picture-in-picture` を追加した。
 
 ## 既知の問題(ここまでの検証結果)
 
@@ -70,6 +33,7 @@
 | `ERR_BLOCKED_BY_CSP` | Claudeのプレビュー/Artifact環境のCSPが外部ドメインのiframeを禁止している | この環境では確認不可。自前ホスティングで確認する |
 | YouTubeのエラー153 | `file://` で開くとHTTPリファラが付かず、埋め込みが拒否される | `http://localhost` か https で配信して開く |
 | 黒/白画面のまま | 旧版は `prompt()` を使っていた。サンドボックス環境では `prompt()` がブロックされIDが取れなかった | ページ内フォームに変更済み |
+| (確認済み) フォーム→保存→iframe表示→リロード後の自動表示 | — | localhost配信とヘッドレスChromiumで動作を確認した。URLを貼った場合のID抽出も確認済み。実際の動画再生は未確認(実機確認待ち) |
 
 ## 最初にやること
 
