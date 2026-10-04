@@ -10,26 +10,41 @@
 
 ## 現在のスコープ(最小構成)
 
-- `index.html` 1枚のみ。ビルド、依存パッケージ、APIキー、cron、GitHub Actions、`videos.json` はすべて不要。
+- `index.html` 1枚のみ。ビルド、依存パッケージ、APIキーは使わない。
 - `https://www.youtube-nocookie.com/embed/videoseries?list=<再生リストID>` をiframeで表示する。
 - 動画IDの解決はYouTube側のプレイヤーが行う。再生リストに動画を追加すれば即時に反映される。
 - 再生リストは「公開」または「限定公開」(非公開は埋め込み不可)。
-- 再生リストIDはページ内フォームで入力し、履歴としてlocalStorage(`playlists`、`{id, title, at}` の新しい順の配列。`at` は最後に開いた時刻)に保存する(コードに秘密情報は持たない)。
+- 再生リストIDはページ内で入力し、ブラウザのlocalStorageに保存する。コードに再生リストIDなどの個人的な値は持たない。
 
-### 現在のコード
+### 仕様(`index.html`)
 
-実体は `index.html`。最初の版からの差分は次の通り。
+**画面構成**
+- 入力画面: 再生リストIDかURLの入力欄(`<form>`、Enterでも開ける)と、履歴のボタン一覧。ページを開くと常にこの画面から始まる。
+- プレイヤー画面: 上部の戻るバー(`← 履歴`)、16:9のiframe、その下に再生リスト内の動画一覧。
+  - iframeの幅は `min(100%, (100dvh - 48px) * 16/9)`。横長の画面でも戻るバーと合わせて画面の高さに収まる。
+  - 戻るボタンはiframeを削除して再生を止め、履歴を描き直した入力画面に戻る(リロードしない)。
 
-- `<meta name="referrer" content="strict-origin-when-cross-origin">` と iframe の `referrerPolicy` を明示した(エラー153の予防)。
-- 入力欄を `<form>` にして、Enterキーで保存できるようにした。
-- 再生リストURL(`...?list=PL...`)を貼った場合は、`list` パラメータを取り出して保存する。
-- iframe の `allow` に `encrypted-media; picture-in-picture` を追加した。
-- リロード時は常に入力画面を表示し、過去に開いた再生リストの履歴から1タップで開けるようにした(以前は保存済みの1件を自動表示していた)。旧版の `pl` キーは履歴へ引き継ぐ。旧形式(IDの文字列の配列)も読み込み時に変換する。
-- 再生リストを開くたびにYouTube oEmbed(`https://www.youtube.com/oembed?format=json&url=<再生リストURL>`)で再生リスト名を取得し、履歴に保存する。履歴ボタンは再生リスト名(未取得ならID)を表示する。APIキー不要。oEmbedはCORSを許可しており、ブラウザの `fetch` で取得できることを実ブラウザで確認済み。保存するのは `title` のみで、`author_name` 等の投稿者情報は保存しない。取得に失敗しても再生には影響しない。
-- 埋め込みURLに `playsinline=1` を追加した(iOSで再生開始時にネイティブ全画面へ強制遷移するのを防ぐ)。
-- プレイヤー画面を「上部の戻るバー(`← 履歴`)+16:9のiframe」にした。以前はiframeがビューポート全面(`width/height:100%`、背景黒)を覆っていた。iframeの幅は `min(100%, (100dvh - 48px) * 16/9)` とし、横長の画面でも画面の高さに収める。戻るボタンでiframeを削除して再生を止め、履歴を再描画した入力画面に戻る(リロード不要)。
-- プレイヤーの下に再生リスト内の動画一覧を表示するようにした。埋め込みURLに `enablejsapi=1&origin=<自ページのorigin>` を付け、IFrame Player API(`https://www.youtube.com/iframe_api`、APIキー不要)を初回のみ読み込んで既存のiframeに `YT.Player` を接続する。`getPlaylist()` で動画IDを取り、各動画のタイトルは動画URLのoEmbedで取得する(失敗時は「動画 N」)。タップで `playVideoAt(i)`、再生中の動画は `getPlaylistIndex()` で太字にする。APIスクリプトが読み込めなくても埋め込みでの再生はできる(一覧が出ないだけ)。
-- YouTube API Services 開発者ポリシーの「保存したAPIデータは30日以内に更新か削除」に合わせ、履歴は最後に開いてから30日を過ぎたら表示せずlocalStorageから削除する。再生リスト名は開くたびに取り直し、取得に失敗したら名前を持たない(IDを表示する)ので、保存している名前は常に30日以内のもの。`at` のない旧形式の履歴は読み込み時に「今開いたもの」として扱う。動画一覧のタイトルは保存しない。
+**入力**
+- URL(`...?list=PL...`)が貼られた場合は `list` パラメータを取り出す。それ以外は入力値をそのままIDとして使う。
+
+**埋め込み**
+- URL: `https://www.youtube-nocookie.com/embed/videoseries?list=<ID>&playsinline=1&enablejsapi=1&origin=<自ページのorigin>`
+  - `playsinline=1`: iOSで再生開始時にネイティブ全画面へ移らないようにする。
+  - `enablejsapi=1&origin=...`: IFrame Player APIで動画一覧を取得するため。
+- iframe: `allow="fullscreen; encrypted-media; picture-in-picture"`、`allowfullscreen`、`referrerPolicy="strict-origin-when-cross-origin"`。`<head>` にも同じ値の `<meta name="referrer">` を置く(エラー153の予防)。
+
+**動画一覧**
+- IFrame Player API(`https://www.youtube.com/iframe_api`、APIキー不要)を最初の1回だけ読み込み、既存のiframeに `YT.Player` を接続する。
+- `getPlaylist()` で動画IDを取り、各動画のタイトルは動画URLのoEmbedで取得する(失敗時は「動画 N」)。
+- タップで `playVideoAt(i)`。再生中の動画は `getPlaylistIndex()` で太字にする。
+- APIスクリプトが読み込めなくても埋め込みでの再生はできる(一覧が出ないだけ)。動画のタイトルは保存しない。
+
+**履歴(localStorage)**
+- キー `playlists`。`{id, title, at}` の配列で、最後に開いたものが先頭。`at` は最後に開いた時刻。
+- 開くたびに `at` を更新し、再生リスト名をoEmbed(`https://www.youtube.com/oembed?format=json&url=<再生リストURL>`)で取り直す。取得に失敗した場合は名前を持たず、IDを表示する。保存するのは `title` だけで、`author_name` などの投稿者情報は保存しない。
+- 最後に開いてから30日を過ぎた履歴は、読み込み時に削除する。YouTube API Services 開発者ポリシーの「保存したAPIデータは30日以内に更新か削除」に合わせたもの。
+- 旧形式のデータは読み込み時に変換する。`pl` キー(1件のみ)、IDの文字列の配列、`at` のない要素は「今開いたもの」として扱う。
+- oEmbedはCORSを許可しており、ブラウザの `fetch` で取得できる(実ブラウザで確認済み)。取得に失敗しても再生には影響しない。
 
 ## 既知の問題(ここまでの検証結果)
 
@@ -60,8 +75,8 @@
 
 ## Claude Codeへの作業指示
 
-- まず `index.html` をこのプロジェクトのルートに作成し、上記コードで動作確認する。
+- `index.html` を変更したら、localhostで配信して動作確認する。
 - 余計な依存やビルド工程を足さない。最小構成を維持する。
-- 変更した場合は、既知の問題の表と確認項目の結果をこのファイルに反映する。
+- 変更した場合は、上の仕様、既知の問題の表、確認項目の結果をこのファイルに反映する。仕様は現在の状態として書き、変更の経緯はgitのログに任せる。
 - デプロイ先はGitHub Pages。手順は `README.md` にまとめている。
 - このリポジトリはpublic。個人的な事情やリポジトリ外のメモへの参照は書かない。
