@@ -23,7 +23,7 @@
 
 - `<meta name="referrer" content="strict-origin-when-cross-origin">` と iframe の `referrerPolicy` を明示した(エラー153の予防)。
 - 入力欄を `<form>` にして、Enterキーで保存できるようにした。
-- 再生リストURL(`...?list=PL...`)を貼った場合は、`list` パラメータを取り出して保存する。
+- 再生リストURLや共有リンク(`...?list=PL...&si=...`)を貼った場合は、正規表現で `list` パラメータを取り出して保存する。スキーム省略や前後に文字列が付いた貼り付けにも対応する。
 - iframe の `allow` に `encrypted-media; picture-in-picture` を追加した。
 - 埋め込みURLに `playsinline=1` を追加した(iOSで再生開始時にネイティブ全画面へ強制遷移するのを防ぐ)。
 
