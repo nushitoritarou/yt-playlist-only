@@ -11,6 +11,7 @@
   #setup { padding: 16px; background: #fff; }
   #setup input { width: 100%; box-sizing: border-box; font-size: 16px; padding: 8px; margin: 8px 0; }
   #history { list-style: none; padding: 0; }
+  #history small { color: #666; }
   #history button { width: 100%; text-align: left; font-size: 16px; padding: 12px 8px; margin: 4px 0; }
 </style>
 </head>
@@ -22,19 +23,36 @@
   <ul id="history"></ul>
 </form>
 <script>
-  // 入力したことのある再生リストIDを新しい順に保存する
+  // 入力したことのある再生リストを {id, title} の配列で新しい順に保存する
   const KEY = "playlists";
   function load() {
     try {
       const a = JSON.parse(localStorage.getItem(KEY));
-      if (Array.isArray(a)) return a;
-      const old = localStorage.getItem("pl"); // 旧版は1件だけ "pl" に保存していた
-      return old ? [old] : [];
+      // 旧形式(IDの文字列の配列)と旧版の "pl" キー(1件のみ)を引き継ぐ
+      if (Array.isArray(a)) return a.map(x => typeof x === "string" ? { id: x } : x);
+      const old = localStorage.getItem("pl");
+      return old ? [{ id: old }] : [];
     } catch { return []; }
   }
-  function remember(id) {
-    const a = [id, ...load().filter(x => x !== id)];
+  function save(a) {
     try { localStorage.setItem(KEY, JSON.stringify(a)); } catch {}
+  }
+  function remember(id) {
+    const a = load();
+    const cur = a.find(x => x.id === id) || { id };
+    save([cur, ...a.filter(x => x.id !== id)]);
+  }
+
+  // oEmbedで再生リスト名を取得して履歴に記録する。失敗しても再生には影響させない
+  async function fetchTitle(id) {
+    try {
+      const u = "https://www.youtube.com/playlist?list=" + encodeURIComponent(id);
+      const r = await fetch("https://www.youtube.com/oembed?format=json&url=" + encodeURIComponent(u));
+      if (!r.ok) return;
+      const { title } = await r.json();
+      if (!title) return;
+      save(load().map(x => x.id === id ? { id, title } : x));
+    } catch {}
   }
 
   // URL(…?list=PLxxx)が貼られた場合は list パラメータを取り出す
@@ -44,6 +62,7 @@
 
   function show(id) {
     remember(id);
+    fetchTitle(id);
     document.getElementById("setup").hidden = true;
     const f = document.createElement("iframe");
     f.src = "https://www.youtube-nocookie.com/embed/videoseries?list=" + encodeURIComponent(id)
@@ -57,11 +76,16 @@
   // リロード時は常に入力画面から始め、履歴から選べるようにする
   const form = document.getElementById("setup");
   const list = document.getElementById("history");
-  for (const id of load()) {
+  for (const { id, title } of load()) {
     const li = document.createElement("li");
     const b = document.createElement("button");
     b.type = "button";
-    b.textContent = id;
+    b.textContent = title || id;
+    if (title) {
+      const small = document.createElement("small");
+      small.textContent = id;
+      b.append(document.createElement("br"), small);
+    }
     b.onclick = () => show(id);
     li.appendChild(b);
     list.appendChild(li);
